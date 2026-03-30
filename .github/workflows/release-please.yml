@@ -18,24 +18,22 @@ jobs:
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
 
-            # The logic below handles the npm publication:
             - uses: actions/checkout@v5
-              # these if statements ensure that a publication only occurs when
-              # a new release is created:
               if: ${{ steps.release.outputs.release_created }}
 
+            - uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+              if: ${{ steps.release.outputs.release_created }}
+
+            # Still need node/npm for npm publish
             - uses: actions/setup-node@v6
               with:
                   node-version: lts/*
                   registry-url: "https://registry.npmjs.org"
               if: ${{ steps.release.outputs.release_created }}
 
-              # Ensure npm 11.5.1 or later is installed
-            - name: Update npm
-              run: npm install -g npm@latest
-              if: ${{ steps.release.outputs.release_created }}
-
-            - run: npm ci
+            - run: bun install
               if: ${{ steps.release.outputs.release_created }}
 
             - name: Publish to npm
@@ -44,18 +42,18 @@ jobs:
 
             - name: Publish to JSR
               run: |
-                  npm run build
-                  npx jsr publish
+                  bun run build
+                  bunx jsr publish
               if: ${{ steps.release.outputs.release_created }}
 
             # Generates the social media post
-            - run: npx @humanwhocodes/social-changelog --org humanwhocodes --repo crosspost --name Crosspost --tag ${{ steps.release.outputs.tag_name }} > social-post.txt
+            - run: bunx @humanwhocodes/social-changelog --org humanwhocodes --repo crosspost --name Crosspost --tag ${{ steps.release.outputs.tag_name }} > social-post.txt
               if: ${{ steps.release.outputs.release_created }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # Tweets out release announcement
-            - run: node dist/bin.js -t -b -m -l --file social-post.txt
+            # Posts release announcement
+            - run: bun dist/bin.js -t -b -m -l --file social-post.txt
               if: ${{ steps.release.outputs.release_created }}
               env:
                   TWITTER_API_CONSUMER_KEY: ${{ secrets.TWITTER_CONSUMER_KEY }}

@@ -236,13 +236,15 @@ if (flags.slack) {
 }
 
 if (flags.nostr) {
-	// Nostr support requires Node.js v22 or later
-	const [major] = process.versions.node
-		.split(".")
-		.map(num => parseInt(num, 10));
-	if (major < 22) {
-		console.error("Error: Nostr support requires Node.js v22 or later.");
-		process.exit(1);
+	// Nostr support requires Node.js v22+ or Bun v1.0+
+	if (process.versions.node) {
+		const [major] = process.versions.node
+			.split(".")
+			.map(num => parseInt(num, 10));
+		if (major < 22) {
+			console.error("Error: Nostr support requires Node.js v22 or later, or Bun v1.0 or later.");
+			process.exit(1);
+		}
 	}
 
 	const relaysList = env.require("NOSTR_RELAYS");

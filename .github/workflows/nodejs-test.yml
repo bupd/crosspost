@@ -1,4 +1,4 @@
-name: Node CI
+name: Bun CI
 
 on:
     push:
@@ -15,20 +15,20 @@ jobs:
         strategy:
             matrix:
                 os: [windows-latest, macOS-latest, ubuntu-latest]
-                node: [20.x, 22.x, 24.x]
+                bun: [latest]
 
         steps:
             - uses: actions/checkout@v5
-            - name: Use Node.js ${{ matrix.node }}
-              uses: actions/setup-node@v6
+            - name: Use Bun ${{ matrix.bun }}
+              uses: oven-sh/setup-bun@v2
               with:
-                  node-version: ${{ matrix.node }}
-            - name: npm install, build, and test
+                  bun-version: ${{ matrix.bun }}
+            - name: bun install, build, and test
               run: |
-                  npm ci
-                  npm run build --if-present
-                  npm test
+                  bun install
+                  bun run build
+                  bun run test
               env:
                   CI: true
             - name: JSR Publish Test
-              run: npm run test:jsr
+              run: bun run test:jsr

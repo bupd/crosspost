@@ -11,7 +11,7 @@ A utility for posting across multiple social networks at once.
 ## Installation
 
 ```shell
-npm install @humanwhocodes/crosspost
+bun add @humanwhocodes/crosspost
 ```
 
 ## Usage
@@ -197,10 +197,10 @@ Examples:
 
 ```shell
 # Post a message to multiple services
-npx @humanwhocodes/crosspost -t -m -b "Check out this beach!"
+bunx @humanwhocodes/crosspost -t -m -b "Check out this beach!"
 
 # Post a message with an image to multiple services
-npx @humanwhocodes/crosspost -t -m -b --image ./photo.jpg --image-alt "A beautiful sunset" "Check out this beach!"
+bunx @humanwhocodes/crosspost -t -m -b --image ./photo.jpg --image-alt "A beautiful sunset" "Check out this beach!"
 ```
 
 This posts the message `"Hello world!"` to Twitter, Mastodon, and Bluesky with an attached image. You can choose to post to any combination by specifying the appropriate command line options.
@@ -209,10 +209,10 @@ You can also read the message from a file instead of from the command line:
 
 ```shell
 # Post a message to multiple services
-npx @humanwhocodes/crosspost -t -m -b -f message.txt
+bunx @humanwhocodes/crosspost -t -m -b -f message.txt
 
 # Post a message with an image to multiple services
-npx @humanwhocodes/crosspost -t -m -b -f message.txt -i path/to/image.jpg
+bunx @humanwhocodes/crosspost -t -m -b -f message.txt -i path/to/image.jpg
 ```
 
 Each strategy requires a set of environment variables in order to execute:
@@ -255,7 +255,7 @@ Tip: You can load environment variables from a `.env` file by setting the enviro
 Crosspost can be run as an MCP (Model Context Protocol) server, which allows it to be used by AI agents:
 
 ```shell
-npx @humanwhocodes/crosspost --mcp -t -m -b
+bunx @humanwhocodes/crosspost --mcp -t -m -b
 ```
 
 This starts an MCP server that can post to Twitter, Mastodon, and Bluesky. The server provides prompts and tools for posting to all services or individual services. Only the services indicated by the flags are available via the server.
@@ -263,7 +263,7 @@ This starts an MCP server that can post to Twitter, Mastodon, and Bluesky. The s
 To run the MCP server through the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) for debugging purposes, run the following command:
 
 ```shell
-npx run mcp:inspect -- -t -m -b
+bun run mcp:inspect -- -t -m -b
 ```
 
 #### Using the MCP Server with Claude Desktop
@@ -281,7 +281,7 @@ Claude will then create a `claude_desktop_config.json` file. Open it and add the
 {
 	"mcpServers": {
 		"crosspost": {
-			"command": "npx",
+			"command": "bunx",
 			"args": ["@humanwhocodes/crosspost", "-m", "-l", "--mcp"],
 			"env": {
 				"LINKEDIN_ACCESS_TOKEN": "abcdefghijklmnop",
@@ -301,7 +301,7 @@ If you'd prefer not to put your environment variables directly into the JSON fil
 {
 	"mcpServers": {
 		"crosspost": {
-			"command": "npx",
+			"command": "bunx",
 			"args": ["@humanwhocodes/crosspost", "-m", "-l", "-t", "--mcp"],
 			"env": {
 				"CROSSPOST_DOTENV": "/usr/nzakas/settings/.env"

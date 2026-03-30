@@ -145,7 +145,7 @@ All public methods should validate:
 
 ## Dependencies and Tools
 
-- Node.js with ES modules
+- Bun runtime with ES modules
 - Mocha for testing
 - ESLint for linting
 - Prettier for formatting
@@ -158,6 +158,6 @@ All public methods should validate:
 - Verify exact error messages
 - Test async behavior and concurrent operations
 - Mock external dependencies appropriately
-- Run `npx mocha <filename>` to execute tests for specific files; always do this until all tests pass for this file.
-- Run `npm test` to run all tests
+- Run `bunx mocha <filename>` to execute tests for specific files; always do this until all tests pass for this file.
+- Run `bun run test` to run all tests
 - Do not change the working directory when running tests

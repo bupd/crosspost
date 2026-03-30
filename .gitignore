@@ -70,3 +70,5 @@ tests/fixtures/typescript-project/index.js
 dist/env.js
 
 tmp
+package-lock.json
+node_modules/
