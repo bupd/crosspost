@@ -50,6 +50,7 @@
     "test": "bun run test:unit && bun run test:build && bun run test:attw",
     "x:crosspost": "bun scripts/x-crosspost.js",
     "x:supervise": "bun scripts/x-crosspost-supervisor.js",
+    "x:poll": "bun scripts/x-crosspost-poll.js",
     "x:webhook": "bun scripts/x-webhook-server.js",
     "mcp:inspect": "bun run build && cross-env CROSSPOST_DOTENV=1 bunx @modelcontextprotocol/inspector bun dist/bin.js --mcp"
   },

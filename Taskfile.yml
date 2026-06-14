@@ -18,6 +18,18 @@ tasks:
     cmds:
       - task --list
 
+  up:
+    desc: Start the local polling worker using .env
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} bun run x:poll
+
+  up:dry-run:
+    desc: Start the local polling worker without posting
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} X_CROSSPOST_DRY_RUN=1 bun run x:poll
+
   setup:
     desc: Install dependencies and create .env from .env.example if missing
     preconditions:

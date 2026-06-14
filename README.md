@@ -260,7 +260,7 @@ This repository includes a poller for people who want X to be the only place the
 - LinkedIn receives only posts with hashtags or self-thread posts.
 - LinkedIn self-threads are combined into one paragraph-style post instead of separate posts.
 - Photos and downloadable X videos/GIFs are downloaded and attached to the crossposts.
-- X webhooks can trigger processing immediately, so a timer is only needed as a fallback.
+- The simplest deployment is a local polling worker that runs from `.env`.
 
 Prerequisites for a fresh machine or new repo clone:
 
@@ -280,16 +280,24 @@ task setup
 
 Then fill in `.env`. Do not commit real tokens.
 
-Run it directly:
+Start the polling worker:
+
+```shell
+task up
+```
+
+For testing without posting:
+
+```shell
+task up:dry-run
+```
+
+By default, `task up` runs immediately and then polls every 120 seconds. Change `X_CROSSPOST_POLL_INTERVAL_SECONDS` in `.env` to adjust this.
+
+Run one poll manually:
 
 ```shell
 task x:run
-```
-
-Run it through the local supervisor, which can invoke an agent if the crosspost command fails:
-
-```shell
-task x:supervise
 ```
 
 The first run initializes `.crosspost-state.json` at the newest fetched X post and does not backfill old posts. To intentionally backfill the current lookback window, set `X_CROSSPOST_BOOTSTRAP=1`.
@@ -312,6 +320,8 @@ Required target environment variables:
 Optional settings:
 
 - `X_CROSSPOST_STATE_FILE` changes the state file path.
+- `X_CROSSPOST_POLL_INTERVAL_SECONDS` changes the `task up` polling interval. The default is `120` seconds.
+- `X_CROSSPOST_POLL_COMMAND` overrides the command that `task up` runs each interval. The default is `bun scripts/x-crosspost.js`.
 - `X_CROSSPOST_LOOKBACK_LIMIT` changes how many recent X posts are inspected, from 5 to 100. The default is 20.
 - `X_CROSSPOST_LINKEDIN_SETTLE_MINUTES` changes how long LinkedIn-eligible posts wait before posting. The default is 10 minutes, which gives X threads time to finish before LinkedIn gets one combined post.
 - `X_CROSSPOST_DRY_RUN=1` logs intended posts without sending them.
@@ -357,6 +367,22 @@ X_CROSSPOST_AGENT_COMMAND='opencode run "$(cat "$PROMPT_FILE")"'
 ```
 
 #### Example Local Workflows
+
+Simple local worker:
+
+```shell
+task up
+```
+
+Stop it with `Ctrl-C`.
+
+Dry-run worker for testing:
+
+```shell
+task up:dry-run
+```
+
+Webhook mode is optional and not required for the simple polling setup.
 
 Webhook receiver, preferred when your X app has webhooks:
 
