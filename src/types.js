@@ -14,12 +14,25 @@
  */
 
 /**
+ * @typedef {Object} MediaEmbed
+ * @property {string} [alt] The alt text for the media.
+ * @property {Uint8Array} data The media data.
+ * @property {"image"|"video"} type The media type.
+ * @property {string} mimeType The MIME type for the media.
+ */
+
+/**
  * @typedef {[ImageEmbed]|[ImageEmbed, ImageEmbed]|[ImageEmbed, ImageEmbed, ImageEmbed]|[ImageEmbed, ImageEmbed, ImageEmbed,ImageEmbed]} ImageEmbedArray
+ */
+
+/**
+ * @typedef {[MediaEmbed]|[MediaEmbed, MediaEmbed]|[MediaEmbed, MediaEmbed, MediaEmbed]|[MediaEmbed, MediaEmbed, MediaEmbed,MediaEmbed]} MediaEmbedArray
  */
 
 /**
  * @typedef {Object} PostOptions
  * @property {ImageEmbedArray} [images] An array of images to include.
+ * @property {MediaEmbedArray} [media] An array of media to include.
  * @property {AbortSignal} [signal] Signal for aborting operations.
  */
 
@@ -33,6 +46,7 @@
  * @property {string} message The message to post.
  * @property {string} strategyId The ID of the strategy to use for posting.
  * @property {ImageEmbedArray} [images] An array of images to include.
+ * @property {MediaEmbedArray} [media] An array of media to include.
  */
 
 /**

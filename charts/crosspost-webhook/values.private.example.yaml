@@ -1,0 +1,23 @@
+# Copy this file to values.private.yaml and fill in real values.
+# values.private.yaml is ignored by git.
+
+image:
+  repository: docker.io/bupd/crosspost-webhook
+  tag: dev
+
+config:
+  mastodonHost: mastodon.social
+
+secret:
+  create: true
+  values:
+    # For X webhook CRC/signature checks, use the X app API/consumer secret.
+    X_WEBHOOK_CONSUMER_SECRET: ""
+    X_BEARER_TOKEN: ""
+    # Use either X_USER_ID or X_USERNAME.
+    X_USER_ID: ""
+    X_USERNAME: ""
+    BLUESKY_IDENTIFIER: ""
+    BLUESKY_PASSWORD: ""
+    MASTODON_ACCESS_TOKEN: ""
+    LINKEDIN_ACCESS_TOKEN: ""

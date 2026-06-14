@@ -1,0 +1,187 @@
+# -- Number of webhook receiver replicas. Keep this at 1 because crosspost state is file-backed.
+replicaCount: 1
+
+# -- Revision history limit for the Deployment.
+revisionHistoryLimit: 3
+
+image:
+    # -- Container image repository to deploy. Build and push the Dockerfile to this repository.
+    repository: docker.io/bupd/crosspost-webhook
+    # -- Image pull policy.
+    pullPolicy: IfNotPresent
+    # -- Image tag. Defaults to Chart.appVersion when empty.
+    tag: ""
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+# - name: regcred
+
+# -- Override chart name.
+nameOverride: ""
+# -- Override full release name.
+fullnameOverride: ""
+
+serviceAccount:
+    # -- Create a dedicated service account.
+    create: true
+    # -- Automatically mount Kubernetes API credentials.
+    automount: false
+    # -- Service account annotations.
+    annotations: {}
+    # -- Service account name. Generated when empty.
+    name: ""
+
+# -- Pod annotations.
+podAnnotations: {}
+
+# -- Extra pod labels.
+podLabels: {}
+
+# -- Pod security context.
+podSecurityContext:
+    fsGroup: 1000
+
+# -- Container security context.
+securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+        drop:
+            - ALL
+    runAsNonRoot: true
+    runAsUser: 1000
+
+service:
+    # -- Kubernetes Service type.
+    type: ClusterIP
+    # -- Kubernetes Service port.
+    port: 80
+    # -- Container webhook port.
+    targetPort: 8787
+
+ingress:
+    # -- Enable ingress for the webhook receiver.
+    enabled: true
+    # -- Ingress class name. k3s defaults to Traefik in most installs.
+    className: traefik
+    # -- Ingress annotations. Adjust the cert-manager issuer to match your cluster.
+    annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+        - host: crosspost-webhook.bupd.xyz
+          paths:
+              - path: /
+                pathType: Prefix
+    tls:
+        - secretName: crosspost-webhook-tls
+          hosts:
+              - crosspost-webhook.bupd.xyz
+
+persistence:
+    # -- Persist crosspost state so pods do not repost after restarts.
+    enabled: true
+    # -- Existing PVC to use. A new PVC is created when empty and persistence is enabled.
+    existingClaim: ""
+    # -- StorageClass for the state PVC. Empty uses the cluster default.
+    storageClass: ""
+    # -- Access modes for the state PVC.
+    accessModes:
+        - ReadWriteOnce
+    # -- Size of the state PVC.
+    size: 1Gi
+    # -- Mount path for state data.
+    mountPath: /app/data
+
+config:
+    # -- Host for Bun.serve inside the container.
+    xWebhookHost: 0.0.0.0
+    # -- Port for Bun.serve inside the container.
+    xWebhookPort: "8787"
+    # -- Public webhook path to register with X.
+    xWebhookPath: /webhooks/x
+    # -- Command run after a verified X webhook arrives.
+    xWebhookCommand: bun scripts/x-crosspost-supervisor.js
+    # -- State file path inside the container.
+    xCrosspostStateFile: /app/data/crosspost-state.json
+    # -- Supervisor log directory inside the container.
+    xCrosspostLogDir: /app/data/remediation
+    # -- Number of recent X posts to inspect when processing a webhook.
+    xCrosspostLookbackLimit: "20"
+    # -- Minutes to wait before posting LinkedIn hashtag posts or aggregated threads.
+    xCrosspostLinkedinSettleMinutes: "10"
+    # -- Disable self-remediation in Kubernetes. Keep remediation on a local writable checkout.
+    xCrosspostRemediate: "0"
+    # -- Rerun after remediation. Ignored when remediation is disabled.
+    xCrosspostRerunAfterRemediation: "0"
+    # -- Bluesky PDS host.
+    blueskyHost: bsky.social
+    # -- Mastodon instance host.
+    mastodonHost: ""
+    # -- Optional extra non-secret environment variables.
+    extraEnv: {}
+
+secret:
+    # -- Create a Kubernetes Secret from secret.values.
+    create: true
+    # -- Existing Secret containing the same environment variable names. Used when create is false.
+    existingSecret: ""
+    # -- Secret annotations.
+    annotations: {}
+    # -- Secret values. Fill these in a private values file, not in git.
+    values:
+        X_WEBHOOK_CONSUMER_SECRET: ""
+        X_BEARER_TOKEN: ""
+        X_USER_ID: ""
+        X_USERNAME: ""
+        BLUESKY_IDENTIFIER: ""
+        BLUESKY_PASSWORD: ""
+        MASTODON_ACCESS_TOKEN: ""
+        LINKEDIN_ACCESS_TOKEN: ""
+
+# -- Extra environment variables appended directly to the container.
+extraEnvVars: []
+# - name: FOO
+#   value: bar
+
+resources:
+    requests:
+        cpu: 50m
+        memory: 128Mi
+    limits:
+        cpu: 500m
+        memory: 512Mi
+
+livenessProbe:
+    httpGet:
+        path: /healthz
+        port: http
+    initialDelaySeconds: 10
+    periodSeconds: 20
+
+readinessProbe:
+    httpGet:
+        path: /healthz
+        port: http
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+autoscaling:
+    # -- Enable HPA. Keep disabled while using file-backed state.
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 1
+    targetCPUUtilizationPercentage: 80
+
+# -- Node selector.
+nodeSelector: {}
+
+# -- Tolerations.
+tolerations: []
+
+# -- Affinity rules.
+affinity: {}
+
+# -- Additional volumes.
+extraVolumes: []
+
+# -- Additional volume mounts.
+extraVolumeMounts: []

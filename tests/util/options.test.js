@@ -8,7 +8,7 @@
 //-----------------------------------------------------------------------------
 
 import assert from "node:assert";
-import { validatePostOptions } from "../../src/util/options.js";
+import { getPostMedia, validatePostOptions } from "../../src/util/options.js";
 
 //-----------------------------------------------------------------------------
 // Tests
@@ -48,5 +48,74 @@ describe("validatePostOptions()", () => {
 			images: [{ data: new Uint8Array() }],
 		};
 		assert.doesNotThrow(() => validatePostOptions(options));
+	});
+
+	it("should throw error when media is not an array", () => {
+		assert.throws(
+			() => validatePostOptions({ media: {} }),
+			new TypeError("media must be an array."),
+		);
+	});
+
+	it("should throw error when media has invalid type", () => {
+		assert.throws(
+			() =>
+				validatePostOptions({
+					media: [
+						{
+							data: new Uint8Array(),
+							type: "audio",
+							mimeType: "audio/mpeg",
+						},
+					],
+				}),
+			new TypeError('Media type must be "image" or "video".'),
+		);
+	});
+
+	it("should not throw error when media is valid", () => {
+		const options = {
+			media: [
+				{
+					data: new Uint8Array(),
+					type: "video",
+					mimeType: "video/mp4",
+				},
+			],
+		};
+		assert.doesNotThrow(() => validatePostOptions(options));
+	});
+});
+
+describe("getPostMedia()", () => {
+	it("should return media when present", () => {
+		const media = [
+			{
+				data: new Uint8Array(),
+				type: "video",
+				mimeType: "video/mp4",
+			},
+		];
+
+		assert.strictEqual(getPostMedia({ media }), media);
+	});
+
+	it("should normalize images when media is not present", () => {
+		const data = new Uint8Array();
+		assert.deepStrictEqual(
+			getPostMedia({ images: [{ data, alt: "alt" }] }),
+			[
+				{
+					data,
+					alt: "alt",
+					type: "image",
+					mimeType: "",
+				},
+			],
+		);
+	});
+
+	it("should return an empty array when no media is present", () => {
+		assert.deepStrictEqual(getPostMedia({}), []);
 	});
 });

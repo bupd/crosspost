@@ -10,6 +10,7 @@
 //-----------------------------------------------------------------------------
 
 import { getImageMimeType } from "../util/images.js";
+import { getPostMedia, validatePostOptions } from "../util/options.js";
 
 //-----------------------------------------------------------------------------
 // Type Definitions
@@ -78,26 +79,27 @@ import { getImageMimeType } from "../util/images.js";
  * @param {Object} options The upload options.
  * @param {string} options.accessToken The Mastodon access token.
  * @param {string} options.host The Mastodon host.
- * @param {Object} image The image to upload.
- * @param {Uint8Array} image.data The image data.
- * @param {string} [image.alt] Alt text for the image.
+ * @param {import("../types.js").MediaEmbed|import("../types.js").ImageEmbed} media The media to upload.
  * @param {AbortSignal} [signal] The abort signal.
  * @returns {Promise<string>} A promise that resolves with the media ID.
  * @throws {Error} If the upload fails.
  */
-async function uploadMedia({ accessToken, host }, image, signal) {
+async function uploadMedia({ accessToken, host }, media, signal) {
 	const url = `https://${host}/api/v1/media`;
-	const type = getImageMimeType(image.data);
+	const type =
+		"mimeType" in media && media.mimeType
+			? media.mimeType
+			: getImageMimeType(media.data);
 
 	if (!type) {
-		throw new TypeError("Unsupported image type.");
+		throw new TypeError("Unsupported media type.");
 	}
 
 	const data = new FormData();
-	data.append("file", new Blob([image.data], { type }));
+	data.append("file", new Blob([media.data], { type }));
 
-	if (image.alt) {
-		data.append("description", image.alt);
+	if (media.alt) {
+		data.append("description", media.alt);
 	}
 
 	const response = await fetch(url, {
@@ -197,23 +199,7 @@ export class MastodonStrategy {
 			throw new Error("Missing message to toot.");
 		}
 
-		// Validate postOptions if provided
-		if (postOptions) {
-			if (postOptions.images && !Array.isArray(postOptions.images)) {
-				throw new TypeError("images must be an array.");
-			}
-
-			if (postOptions.images) {
-				for (const image of postOptions.images) {
-					if (!image.data) {
-						throw new TypeError("Image must have data.");
-					}
-					if (!(image.data instanceof Uint8Array)) {
-						throw new TypeError("Image data must be a Uint8Array.");
-					}
-				}
-			}
-		}
+		validatePostOptions(postOptions);
 
 		const { accessToken, host } = this.#options;
 		const url = `https://${host}/api/v1/statuses`;
@@ -221,14 +207,18 @@ export class MastodonStrategy {
 		data.append("status", message);
 
 		// Upload images first if present
-		if (postOptions?.images?.length) {
+		const media = getPostMedia(postOptions);
+
+		if (media.length) {
 			const mediaIds = await Promise.all(
-				postOptions.images.map(image =>
-					uploadMedia(this.#options, image, postOptions?.signal),
+				media.map(item =>
+					uploadMedia(this.#options, item, postOptions?.signal),
 				),
 			);
 
-			data.append("media_ids[]", mediaIds.join(","));
+			for (const mediaId of mediaIds) {
+				data.append("media_ids[]", mediaId);
+			}
 		}
 
 		const response = await fetch(url, {

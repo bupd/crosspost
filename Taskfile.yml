@@ -1,0 +1,301 @@
+version: "3"
+
+vars:
+  ENV_FILE: '{{default ".env" .ENV_FILE}}'
+  INSTALL_DIR: '{{default "/opt/x-crosspost" .INSTALL_DIR}}'
+  CHART_DIR: charts/crosspost-webhook
+  RELEASE: '{{default "crosspost-webhook" .RELEASE}}'
+  NAMESPACE: '{{default "crosspost" .NAMESPACE}}'
+  IMAGE_REPOSITORY: '{{default "docker.io/bupd/crosspost-webhook" .IMAGE_REPOSITORY}}'
+  GHCR_IMAGE_REPOSITORY: '{{default "ghcr.io/bupd/crosspost-webhook" .GHCR_IMAGE_REPOSITORY}}'
+  IMAGE_TAG: '{{default "dev" .IMAGE_TAG}}'
+  TASK_BIN:
+    sh: command -v task 2>/dev/null || true
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  up:
+    desc: Start the local polling worker using .env
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} bun run x:poll
+
+  up:dry-run:
+    desc: Start the local polling worker without posting
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} X_CROSSPOST_DRY_RUN=1 bun run x:poll
+
+  setup:
+    desc: Install dependencies and create .env from .env.example if missing
+    preconditions:
+      - sh: command -v bun >/dev/null
+        msg: "Bun is required: https://bun.sh/docs/installation"
+    cmds:
+      - bun install
+      - cmd: cp .env.example {{.ENV_FILE}}
+        platforms: [linux, darwin]
+        status:
+          - test -f {{.ENV_FILE}}
+      - cmd: powershell -NoProfile -Command "if (!(Test-Path '{{.ENV_FILE}}')) { Copy-Item .env.example '{{.ENV_FILE}}' }"
+        platforms: [windows]
+
+  validate:
+    desc: Run lint, build, and unit tests
+    deps: [lint, build, test:unit]
+
+  validate:full:
+    desc: Run full package validation
+    cmds:
+      - task: validate
+      - task: test:build
+      - task: test:attw
+      - task: helm:lint
+
+  lint:
+    desc: Run ESLint
+    cmds:
+      - bun run lint
+
+  build:
+    desc: Build TypeScript declarations/output
+    cmds:
+      - bun run build
+
+  test:unit:
+    desc: Run unit tests
+    cmds:
+      - bun run test:unit
+
+  test:build:
+    desc: Validate package build loading
+    cmds:
+      - bun run test:build
+
+  test:attw:
+    desc: Validate package type exports
+    cmds:
+      - bun run test:attw
+
+  x:init:
+    desc: Initialize crosspost state without backfilling old X posts
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} bun run x:crosspost
+
+  x:dry-run:
+    desc: Show intended crossposts without posting
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} X_CROSSPOST_DRY_RUN=1 bun run x:crosspost
+
+  x:backfill-dry-run:
+    desc: Dry-run the current lookback window as a backfill
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} X_CROSSPOST_DRY_RUN=1 X_CROSSPOST_BOOTSTRAP=1 bun run x:crosspost
+
+  x:run:
+    desc: Run one real crosspost poll
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} bun run x:crosspost
+
+  x:supervise:
+    desc: Run crosspost with local agent remediation on failure
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} bun run x:supervise
+
+  x:supervise:dry-run:
+    desc: Run supervised dry-run without posting
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} X_CROSSPOST_DRY_RUN=1 bun run x:supervise
+
+  x:supervise:smoke:
+    desc: Smoke-test the supervisor without posting or remediation
+    cmds:
+      - X_CROSSPOST_REMEDIATE=0 X_CROSSPOST_COMMAND='bun --version' bun scripts/x-crosspost-supervisor.js
+
+  x:webhook:
+    desc: Run the local X webhook receiver
+    dotenv: ["{{.ENV_FILE}}"]
+    cmds:
+      - CROSSPOST_DOTENV={{.ENV_FILE}} bun run x:webhook
+
+  x:webhook:smoke:
+    desc: Smoke-test webhook server startup without registering it with X
+    cmds:
+      - sh -c 'X_WEBHOOK_CONSUMER_SECRET=test-secret X_WEBHOOK_HOST=127.0.0.1 X_WEBHOOK_PORT=18787 timeout 2 bun scripts/x-webhook-server.js; code=$?; test $code -eq 124 -o $code -eq 143'
+
+  image:build:
+    desc: Build and tag the crosspost-webhook image for Docker Hub and GHCR
+    cmds:
+      - docker build -t {{.IMAGE_REPOSITORY}}:{{.IMAGE_TAG}} .
+      - docker tag {{.IMAGE_REPOSITORY}}:{{.IMAGE_TAG}} {{.GHCR_IMAGE_REPOSITORY}}:{{.IMAGE_TAG}}
+
+  image:push:dockerhub:
+    desc: Push the crosspost-webhook image to Docker Hub
+    cmds:
+      - docker push {{.IMAGE_REPOSITORY}}:{{.IMAGE_TAG}}
+
+  image:push:ghcr:
+    desc: Push the crosspost-webhook image to GHCR
+    cmds:
+      - docker push {{.GHCR_IMAGE_REPOSITORY}}:{{.IMAGE_TAG}}
+
+  image:push:
+    desc: Push the crosspost-webhook image to Docker Hub and GHCR
+    cmds:
+      - task: image:push:dockerhub
+      - task: image:push:ghcr
+
+  helm:lint:
+    desc: Lint the crosspost-webhook Helm chart
+    cmds:
+      - helm lint {{.CHART_DIR}} --strict
+
+  helm:template:
+    desc: Render the crosspost-webhook Helm chart locally
+    cmds:
+      - helm template {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+  helm:template:private:
+    desc: Render the Helm chart with ignored private values
+    preconditions:
+      - sh: test -f {{.CHART_DIR}}/values.private.yaml
+        msg: "Create {{.CHART_DIR}}/values.private.yaml from values.private.example.yaml first"
+    cmds:
+      - helm template {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} -f {{.CHART_DIR}}/values.private.yaml --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+  helm:deploy:
+    desc: Install or upgrade crosspost-webhook in Kubernetes
+    cmds:
+      - helm upgrade --install {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --create-namespace --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+  helm:deploy:private:
+    desc: Install or upgrade crosspost-webhook using ignored private values
+    preconditions:
+      - sh: test -f {{.CHART_DIR}}/values.private.yaml
+        msg: "Create {{.CHART_DIR}}/values.private.yaml from values.private.example.yaml first"
+    cmds:
+      - helm upgrade --install {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --create-namespace -f {{.CHART_DIR}}/values.private.yaml --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+  k8s:secret:apply:
+    desc: Apply the crosspost webhook Kubernetes Secret from ignored .env
+    preconditions:
+      - sh: test -f {{.ENV_FILE}}
+        msg: "Create {{.ENV_FILE}} first"
+      - sh: sh -c '. {{.ENV_FILE}}; test -n "$X_WEBHOOK_CONSUMER_SECRET"'
+        msg: "Set X_WEBHOOK_CONSUMER_SECRET in {{.ENV_FILE}} first"
+      - sh: sh -c '. {{.ENV_FILE}}; test -n "$X_BEARER_TOKEN"'
+        msg: "Set X_BEARER_TOKEN in {{.ENV_FILE}} first"
+      - sh: sh -c '. {{.ENV_FILE}}; test -n "$X_USER_ID" -o -n "$X_USERNAME"'
+        msg: "Set X_USER_ID or X_USERNAME in {{.ENV_FILE}} first"
+    cmds:
+      - |
+        sh -c '. {{.ENV_FILE}}
+        kubectl create namespace {{.NAMESPACE}} --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create secret generic {{.RELEASE}}-env \
+          --namespace {{.NAMESPACE}} \
+          --from-literal=X_WEBHOOK_CONSUMER_SECRET="$X_WEBHOOK_CONSUMER_SECRET" \
+          --from-literal=X_BEARER_TOKEN="$X_BEARER_TOKEN" \
+          --from-literal=X_USER_ID="$X_USER_ID" \
+          --from-literal=X_USERNAME="$X_USERNAME" \
+          --from-literal=BLUESKY_IDENTIFIER="$BLUESKY_IDENTIFIER" \
+          --from-literal=BLUESKY_PASSWORD="$BLUESKY_PASSWORD" \
+          --from-literal=MASTODON_ACCESS_TOKEN="$MASTODON_ACCESS_TOKEN" \
+          --from-literal=MASTODON_HOST="$MASTODON_HOST" \
+          --from-literal=LINKEDIN_ACCESS_TOKEN="$LINKEDIN_ACCESS_TOKEN" \
+          --dry-run=client -o yaml | kubectl apply -f -'
+
+  helm:deploy:env-secret:
+    desc: Apply .env secret and deploy crosspost-webhook using that existing Secret
+    cmds:
+      - task: k8s:secret:apply
+      - helm upgrade --install {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --create-namespace --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}} --set secret.create=false --set secret.existingSecret={{.RELEASE}}-env
+
+  helm:status:
+    desc: Show crosspost-webhook Helm release status
+    cmds:
+      - helm status {{.RELEASE}} --namespace {{.NAMESPACE}}
+
+  cron:print:
+    desc: Print cron entry for the current install directory
+    cmds:
+      - printf '*/15 * * * * cd %s && task x:supervise\n' '{{.INSTALL_DIR}}'
+
+  systemd:install:user:
+    desc: Install the user-level systemd timer
+    platforms: [linux]
+    preconditions:
+      - sh: command -v systemctl >/dev/null
+        msg: "systemctl is required for systemd installation"
+      - sh: test -n "{{.TASK_BIN}}"
+        msg: "task must be available on PATH"
+    cmds:
+      - mkdir -p ~/.config/systemd/user
+      - cp examples/systemd/x-crosspost.service ~/.config/systemd/user/x-crosspost.service
+      - cp examples/systemd/x-crosspost.timer ~/.config/systemd/user/x-crosspost.timer
+      - sed -i 's#WorkingDirectory=/opt/x-crosspost#WorkingDirectory={{.INSTALL_DIR}}#' ~/.config/systemd/user/x-crosspost.service
+      - sed -i 's#EnvironmentFile=/opt/x-crosspost/.env#EnvironmentFile={{.INSTALL_DIR}}/{{.ENV_FILE}}#' ~/.config/systemd/user/x-crosspost.service
+      - sed -i 's#ExecStart=/usr/bin/task x:supervise#ExecStart={{.TASK_BIN}} x:supervise#' ~/.config/systemd/user/x-crosspost.service
+      - systemctl --user daemon-reload
+      - systemctl --user enable --now x-crosspost.timer
+
+  systemd:install-webhook:user:
+    desc: Install the user-level systemd webhook service
+    platforms: [linux]
+    preconditions:
+      - sh: command -v systemctl >/dev/null
+        msg: "systemctl is required for systemd installation"
+      - sh: test -n "{{.TASK_BIN}}"
+        msg: "task must be available on PATH"
+    cmds:
+      - mkdir -p ~/.config/systemd/user
+      - cp examples/systemd/x-webhook.service ~/.config/systemd/user/x-webhook.service
+      - sed -i 's#WorkingDirectory=/opt/x-crosspost#WorkingDirectory={{.INSTALL_DIR}}#' ~/.config/systemd/user/x-webhook.service
+      - sed -i 's#EnvironmentFile=/opt/x-crosspost/.env#EnvironmentFile={{.INSTALL_DIR}}/{{.ENV_FILE}}#' ~/.config/systemd/user/x-webhook.service
+      - sed -i 's#ExecStart=/usr/bin/task x:webhook#ExecStart={{.TASK_BIN}} x:webhook#' ~/.config/systemd/user/x-webhook.service
+      - systemctl --user daemon-reload
+      - systemctl --user enable --now x-webhook.service
+
+  systemd:status:user:
+    desc: Show user-level timer and service status
+    platforms: [linux]
+    cmds:
+      - systemctl --user status x-crosspost.timer --no-pager
+      - systemctl --user status x-crosspost.service --no-pager || true
+
+  systemd:logs:user:
+    desc: Show recent user-level crosspost service logs
+    platforms: [linux]
+    cmds:
+      - journalctl --user -u x-crosspost.service -n 100 --no-pager
+
+  systemd:logs-webhook:user:
+    desc: Show recent user-level webhook service logs
+    platforms: [linux]
+    cmds:
+      - journalctl --user -u x-webhook.service -n 100 --no-pager
+
+  systemd:uninstall:user:
+    desc: Disable and remove the user-level systemd timer
+    platforms: [linux]
+    cmds:
+      - systemctl --user disable --now x-crosspost.timer || true
+      - rm -f ~/.config/systemd/user/x-crosspost.service ~/.config/systemd/user/x-crosspost.timer
+      - systemctl --user daemon-reload
+
+  systemd:uninstall-webhook:user:
+    desc: Disable and remove the user-level webhook service
+    platforms: [linux]
+    cmds:
+      - systemctl --user disable --now x-webhook.service || true
+      - rm -f ~/.config/systemd/user/x-webhook.service
+      - systemctl --user daemon-reload

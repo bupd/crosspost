@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import { parseArgs } from "node:util";
 import { Env } from "@humanwhocodes/env";
+import { loadCrosspostDotenv } from "./util/dotenv.js";
 import {
 	Client,
 	TwitterStrategy,
@@ -130,20 +131,7 @@ if (
 // Load environment variables
 //-----------------------------------------------------------------------------
 
-// load environment variables from .env file if present
-if (process.env.CROSSPOST_DOTENV) {
-	const filePath =
-		process.env.CROSSPOST_DOTENV === "1" ? ".env" : process.env.CROSSPOST_DOTENV;
-	try {
-		process.loadEnvFile(filePath);
-	} catch (err) {
-		// Ignore if file doesn't exist, similar to dotenv behavior
-		const error = /** @type {NodeJS.ErrnoException} */ (err);
-		if (error.code !== "ENOENT") {
-			throw error;
-		}
-	}
-}
+loadCrosspostDotenv();
 
 const env = new Env();
 
@@ -242,7 +230,9 @@ if (flags.nostr) {
 			.split(".")
 			.map(num => parseInt(num, 10));
 		if (major < 22) {
-			console.error("Error: Nostr support requires Node.js v22 or later, or Bun v1.0 or later.");
+			console.error(
+				"Error: Nostr support requires Node.js v22 or later, or Bun v1.0 or later.",
+			);
 			process.exit(1);
 		}
 	}
