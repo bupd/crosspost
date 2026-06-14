@@ -1,0 +1,14 @@
+crosspost-webhook has been installed.
+
+Webhook URL:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}{{ $.Values.config.xWebhookPath }}
+{{- end }}
+
+Check pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Check logs:
+  kubectl logs -n {{ .Release.Namespace }} deploy/{{ include "crosspost-webhook.fullname" . }}
+
+Required secrets must be set via values.secret.values or an existing secret named in values.secret.existingSecret.

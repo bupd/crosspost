@@ -59,6 +59,9 @@ typings/
 .crosspost-state.json
 .crosspost-state.json.tmp
 .opencode/tmp/
+charts/**/values.private.yaml
+charts/**/values.local.yaml
+charts/**/*secrets*.yaml
 
 # next.js build output
 .next

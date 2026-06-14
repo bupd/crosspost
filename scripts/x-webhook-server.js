@@ -154,6 +154,10 @@ function main() {
 		async fetch(request) {
 			const url = new URL(request.url);
 
+			if (url.pathname === "/healthz") {
+				return json({ ok: true });
+			}
+
 			if (url.pathname !== webhookPath) {
 				return json({ error: "Not found" }, 404);
 			}

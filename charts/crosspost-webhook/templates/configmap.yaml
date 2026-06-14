@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "crosspost-webhook.configMapName" . }}
+  labels:
+    {{- include "crosspost-webhook.labels" . | nindent 4 }}
+data:
+  X_WEBHOOK_HOST: {{ .Values.config.xWebhookHost | quote }}
+  X_WEBHOOK_PORT: {{ .Values.config.xWebhookPort | quote }}
+  X_WEBHOOK_PATH: {{ .Values.config.xWebhookPath | quote }}
+  X_WEBHOOK_COMMAND: {{ .Values.config.xWebhookCommand | quote }}
+  X_CROSSPOST_STATE_FILE: {{ .Values.config.xCrosspostStateFile | quote }}
+  X_CROSSPOST_LOG_DIR: {{ .Values.config.xCrosspostLogDir | quote }}
+  X_CROSSPOST_LOOKBACK_LIMIT: {{ .Values.config.xCrosspostLookbackLimit | quote }}
+  X_CROSSPOST_LINKEDIN_SETTLE_MINUTES: {{ .Values.config.xCrosspostLinkedinSettleMinutes | quote }}
+  X_CROSSPOST_REMEDIATE: {{ .Values.config.xCrosspostRemediate | quote }}
+  X_CROSSPOST_RERUN_AFTER_REMEDIATION: {{ .Values.config.xCrosspostRerunAfterRemediation | quote }}
+  BLUESKY_HOST: {{ .Values.config.blueskyHost | quote }}
+  MASTODON_HOST: {{ .Values.config.mastodonHost | quote }}
+  {{- range $key, $value := .Values.config.extraEnv }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

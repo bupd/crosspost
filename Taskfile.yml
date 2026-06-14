@@ -3,6 +3,12 @@ version: "3"
 vars:
     ENV_FILE: '{{default ".env" .ENV_FILE}}'
     INSTALL_DIR: '{{default "/opt/x-crosspost" .INSTALL_DIR}}'
+    CHART_DIR: charts/crosspost-webhook
+    RELEASE: '{{default "crosspost-webhook" .RELEASE}}'
+    NAMESPACE: '{{default "crosspost" .NAMESPACE}}'
+    IMAGE_REPOSITORY: '{{default "docker.io/bupd/crosspost-webhook" .IMAGE_REPOSITORY}}'
+    GHCR_IMAGE_REPOSITORY: '{{default "ghcr.io/bupd/crosspost-webhook" .GHCR_IMAGE_REPOSITORY}}'
+    IMAGE_TAG: '{{default "dev" .IMAGE_TAG}}'
     TASK_BIN:
         sh: command -v task 2>/dev/null || true
 
@@ -36,6 +42,7 @@ tasks:
             - task: validate
             - task: test:build
             - task: test:attw
+            - task: helm:lint
 
     lint:
         desc: Run ESLint
@@ -113,6 +120,64 @@ tasks:
         desc: Smoke-test webhook server startup without registering it with X
         cmds:
             - sh -c 'X_WEBHOOK_CONSUMER_SECRET=test-secret X_WEBHOOK_HOST=127.0.0.1 X_WEBHOOK_PORT=18787 timeout 2 bun scripts/x-webhook-server.js; code=$?; test $code -eq 124 -o $code -eq 143'
+
+    image:build:
+        desc: Build and tag the crosspost-webhook image for Docker Hub and GHCR
+        cmds:
+            - docker build -t {{.IMAGE_REPOSITORY}}:{{.IMAGE_TAG}} .
+            - docker tag {{.IMAGE_REPOSITORY}}:{{.IMAGE_TAG}} {{.GHCR_IMAGE_REPOSITORY}}:{{.IMAGE_TAG}}
+
+    image:push:dockerhub:
+        desc: Push the crosspost-webhook image to Docker Hub
+        cmds:
+            - docker push {{.IMAGE_REPOSITORY}}:{{.IMAGE_TAG}}
+
+    image:push:ghcr:
+        desc: Push the crosspost-webhook image to GHCR
+        cmds:
+            - docker push {{.GHCR_IMAGE_REPOSITORY}}:{{.IMAGE_TAG}}
+
+    image:push:
+        desc: Push the crosspost-webhook image to Docker Hub and GHCR
+        cmds:
+            - task: image:push:dockerhub
+            - task: image:push:ghcr
+
+    helm:lint:
+        desc: Lint the crosspost-webhook Helm chart
+        cmds:
+            - helm lint {{.CHART_DIR}} --strict
+
+    helm:template:
+        desc: Render the crosspost-webhook Helm chart locally
+        cmds:
+            - helm template {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+    helm:template:private:
+        desc: Render the Helm chart with ignored private values
+        preconditions:
+            - sh: test -f {{.CHART_DIR}}/values.private.yaml
+              msg: "Create {{.CHART_DIR}}/values.private.yaml from values.private.example.yaml first"
+        cmds:
+            - helm template {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} -f {{.CHART_DIR}}/values.private.yaml --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+    helm:deploy:
+        desc: Install or upgrade crosspost-webhook in Kubernetes
+        cmds:
+            - helm upgrade --install {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --create-namespace --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+    helm:deploy:private:
+        desc: Install or upgrade crosspost-webhook using ignored private values
+        preconditions:
+            - sh: test -f {{.CHART_DIR}}/values.private.yaml
+              msg: "Create {{.CHART_DIR}}/values.private.yaml from values.private.example.yaml first"
+        cmds:
+            - helm upgrade --install {{.RELEASE}} {{.CHART_DIR}} --namespace {{.NAMESPACE}} --create-namespace -f {{.CHART_DIR}}/values.private.yaml --set image.repository={{.IMAGE_REPOSITORY}} --set image.tag={{.IMAGE_TAG}}
+
+    helm:status:
+        desc: Show crosspost-webhook Helm release status
+        cmds:
+            - helm status {{.RELEASE}} --namespace {{.NAMESPACE}}
 
     cron:print:
         desc: Print cron entry for the current install directory

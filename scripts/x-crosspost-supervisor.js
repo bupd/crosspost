@@ -8,7 +8,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadCrosspostDotenv } from "../src/util/dotenv.js";
 
-const LOG_DIR = ".opencode/tmp/x-crosspost-remediation";
+const LOG_DIR =
+	process.env.X_CROSSPOST_LOG_DIR || ".opencode/tmp/x-crosspost-remediation";
 const DEFAULT_CROSSPOST_COMMAND = "bun scripts/x-crosspost.js";
 const DEFAULT_AGENT = "opencode";
 const VALIDATION_COMMANDS = [

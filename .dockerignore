@@ -1,0 +1,13 @@
+.env
+.crosspost-state.json
+.crosspost-state.json.tmp
+.git
+.github
+.opencode
+coverage
+dist
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tgz

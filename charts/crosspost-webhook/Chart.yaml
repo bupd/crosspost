@@ -1,0 +1,9 @@
+apiVersion: v2
+name: crosspost-webhook
+description: X webhook receiver for crossposting to Bluesky, Mastodon, and LinkedIn.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.25.0-0"
+maintainers:
+    - name: bupd
