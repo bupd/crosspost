@@ -1,0 +1,4 @@
+# Run from `crontab -e` after replacing /opt/x-crosspost with your clone path.
+# Logs are handled by scripts/x-crosspost-supervisor.js under .opencode/tmp/x-crosspost-remediation/.
+
+*/15 * * * * cd /opt/x-crosspost && task x:supervise

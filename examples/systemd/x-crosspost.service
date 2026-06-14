@@ -1,0 +1,20 @@
+[Unit]
+Description=X crosspost poller with local agent remediation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/x-crosspost
+EnvironmentFile=/opt/x-crosspost/.env
+ExecStart=/usr/bin/task x:supervise
+
+# Keep the repo writable so the remediation agent can patch files locally.
+ProtectSystem=off
+ProtectHome=false
+PrivateTmp=true
+NoNewPrivileges=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=x-crosspost

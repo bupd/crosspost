@@ -3,15 +3,15 @@
  * @author Generated for Task #21
  */
 
+/* global clearTimeout */
+
 //-----------------------------------------------------------------------------
 // Imports
 //-----------------------------------------------------------------------------
 
 import { strict as assert } from "node:assert";
 import { fork } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { Client, SuccessResponse, FailureResponse } from "../src/client.js";
@@ -28,9 +28,6 @@ import { SlackStrategy } from "../src/strategies/slack.js";
 // Helpers
 //-----------------------------------------------------------------------------
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const FIXTURES_DIR = path.join(__dirname, "fixtures", "images");
 const builtExecutablePath = path.resolve("dist/bin.js");
 
 // Minimal valid PNG bytes (magic header + enough to pass mime type detection)
@@ -265,16 +262,6 @@ const blueskySessionErrorHandler = http.post(
 		return HttpResponse.json(
 			{ error: "AuthenticationRequired", message: "Invalid credentials" },
 			{ status: 401 },
-		);
-	},
-);
-
-const linkedinUserInfoErrorHandler = http.get(
-	"https://api.linkedin-fail.com/v2/userinfo",
-	async () => {
-		return HttpResponse.json(
-			{ message: "Forbidden" },
-			{ status: 403 },
 		);
 	},
 );

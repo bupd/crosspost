@@ -6,8 +6,8 @@
 /* @ts-self-types="./index.d.ts" */
 
 export * from "./types.js";
-export {
-	BlueskyStrategy,
+export { BlueskyStrategy } from "./strategies/bluesky.js";
+export type {
 	BlueskyCreateRecordResponse,
 	BlueskyErrorResponse,
 	BlueskyImage,
@@ -17,8 +17,8 @@ export {
 	BlueskyUploadBlobResponse,
 } from "./strategies/bluesky.js";
 
-export {
-	MastodonStrategy,
+export { MastodonStrategy } from "./strategies/mastodon.js";
+export type {
 	MastodonOptions,
 	MastodonErrorResponse,
 	MastodonMediaAttachment,
@@ -27,8 +27,8 @@ export {
 	MastodonMediaSize,
 } from "./strategies/mastodon.js";
 
-export {
-	TwitterStrategy,
+export { TwitterStrategy } from "./strategies/twitter.js";
+export type {
 	TwitterOptions,
 	TwitterMediaIdArray,
 } from "./strategies/twitter.js";
@@ -36,20 +36,20 @@ export {
 export * from "./strategies/linkedin.js";
 export { DiscordStrategy } from "./strategies/discord.js";
 export { DiscordWebhookStrategy } from "./strategies/discord-webhook.js";
-export {
-	DevtoStrategy,
+export { DevtoStrategy } from "./strategies/devto.js";
+export type {
 	DevtoArticle,
 	DevtoErrorResponse,
 	DevtoOptions,
 } from "./strategies/devto.js";
-export {
-	TelegramStrategy,
+export { TelegramStrategy } from "./strategies/telegram.js";
+export type {
 	TelegramOptions,
 	TelegramMessageResponse,
 	TelegramErrorResponse,
 } from "./strategies/telegram.js";
-export {
-	SlackStrategy,
+export { SlackStrategy } from "./strategies/slack.js";
+export type {
 	SlackOptions,
 	SlackMessageResponse,
 	SlackErrorResponse,
@@ -59,10 +59,11 @@ export {
 	SlackUploadResponse,
 	SlackFile,
 } from "./strategies/slack.js";
-export {
-	NostrStrategy,
+export { NostrStrategy } from "./strategies/nostr.js";
+export type {
 	NostrOptions,
 	NostrEvent,
 	NostrEventResponse,
 } from "./strategies/nostr.js";
-export { Client, ClientOptions, Strategy } from "./client.js";
+export { Client } from "./client.js";
+export type { ClientOptions, Strategy } from "./client.js";

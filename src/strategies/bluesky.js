@@ -10,7 +10,7 @@
 //-----------------------------------------------------------------------------
 
 import { detectFacets } from "../util/bluesky-facets.js";
-import { validatePostOptions } from "../util/options.js";
+import { getPostMedia, validatePostOptions } from "../util/options.js";
 
 //-----------------------------------------------------------------------------
 // Type Definitions
@@ -56,6 +56,8 @@ import { validatePostOptions } from "../util/options.js";
  * @property {Object} [record.embed] The embedded content in the post.
  * @property {string} record.embed.$type The type of embedded content.
  * @property {Array<Object>} [record.embed.images] The images to embed.
+ * @property {Object} [record.embed.video] The video to embed.
+ * @property {string} [record.embed.alt] The video alt text.
  *
  */
 
@@ -166,17 +168,18 @@ async function resolveHandle(options, handle, signal) {
  * Uploads an image to Bluesky.
  * @param {BlueskyOptions} options The options for the strategy.
  * @param {BlueskySession} session The session data.
- * @param {Uint8Array} imageData The image data to upload.
+ * @param {Uint8Array} imageData The data to upload.
+ * @param {string} [mimeType] The MIME type of the data.
  * @param {AbortSignal} [signal] The abort signal for the request.
  * @returns {Promise<BlueskyUploadBlobResponse>} A promise that resolves with the blob data.
  */
-async function uploadImage(options, session, imageData, signal) {
+async function uploadImage(options, session, imageData, mimeType, signal) {
 	const url = getUploadBlobUrl(options);
 
 	const response = await fetch(url, {
 		method: "POST",
 		headers: {
-			"Content-Type": "*/*",
+			"Content-Type": mimeType || "*/*",
 			Authorization: `Bearer ${session.accessJwt}`,
 		},
 		body: imageData,
@@ -318,29 +321,50 @@ async function postMessage(options, session, message, postOptions) {
 		},
 	};
 
-	// add image embeds if present
-	if (postOptions?.images?.length) {
-		const images = [];
+	// add media embeds if present
+	const media = getPostMedia(postOptions);
 
-		for (const image of postOptions.images) {
+	if (media.length) {
+		const video = media.find(item => item.type === "video");
+
+		if (video) {
 			const result = await uploadImage(
 				options,
 				session,
-				image.data,
+				video.data,
+				video.mimeType,
 				postOptions?.signal,
 			);
 
-			images.push({
-				alt: image.alt || "",
-				image: result.blob,
-			});
-		}
-
-		if (images.length) {
 			body.record.embed = {
-				$type: "app.bsky.embed.images",
-				images,
+				$type: "app.bsky.embed.video",
+				video: result.blob,
+				alt: video.alt || "",
 			};
+		} else {
+			const images = [];
+
+			for (const image of media) {
+				const result = await uploadImage(
+					options,
+					session,
+					image.data,
+					image.mimeType || "*/*",
+					postOptions?.signal,
+				);
+
+				images.push({
+					alt: image.alt || "",
+					image: result.blob,
+				});
+			}
+
+			if (images.length) {
+				body.record.embed = {
+					$type: "app.bsky.embed.images",
+					images,
+				};
+			}
 		}
 	}
 

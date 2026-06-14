@@ -250,6 +250,170 @@ Each strategy requires a set of environment variables in order to execute:
 
 Tip: You can load environment variables from a `.env` file by setting the environment variable `CROSSPOST_DOTENV`. Set it to `1` to use `.env` in the current working directory, or set it to a specific filepath to use a different location.
 
+### X Auto-Crosspost Workflow
+
+This repository includes a poller for people who want X to be the only place they post manually, with the rest handled automatically:
+
+- Top-level X posts are copied to Bluesky and Mastodon.
+- Quote posts, retweets, and replies to other accounts are skipped.
+- Self-replies are treated as thread posts and are copied.
+- LinkedIn receives only posts with hashtags or self-thread posts.
+- LinkedIn self-threads are combined into one paragraph-style post instead of separate posts.
+- Photos and downloadable X videos/GIFs are downloaded and attached to the crossposts.
+- X webhooks can trigger processing immediately, so a timer is only needed as a fallback.
+
+Prerequisites for a fresh machine or new repo clone:
+
+- Bun `>=1.0.0` installed and available on `PATH`.
+- Task installed and available on `PATH`: https://taskfile.dev/installation/
+- An X API bearer token that can read your account's posts.
+- Bluesky app password for your target account.
+- Mastodon access token with status/media write permissions.
+- LinkedIn access token with permission to create member posts, if you want LinkedIn crossposts.
+- Optional: authenticated `opencode` or `codex` CLI for local automated remediation.
+
+Initial setup:
+
+```shell
+task setup
+```
+
+Then fill in `.env`. Do not commit real tokens.
+
+Run it directly:
+
+```shell
+task x:run
+```
+
+Run it through the local supervisor, which can invoke an agent if the crosspost command fails:
+
+```shell
+task x:supervise
+```
+
+The first run initializes `.crosspost-state.json` at the newest fetched X post and does not backfill old posts. To intentionally backfill the current lookback window, set `X_CROSSPOST_BOOTSTRAP=1`.
+
+Required source environment variables:
+
+- `X_BEARER_TOKEN` or `TWITTER_BEARER_TOKEN`
+- `X_USER_ID` or `TWITTER_USER_ID`
+- Alternatively, use `X_USERNAME` or `TWITTER_USERNAME` when no user ID is configured.
+
+Required target environment variables:
+
+- `BLUESKY_HOST`
+- `BLUESKY_IDENTIFIER`
+- `BLUESKY_PASSWORD`
+- `MASTODON_ACCESS_TOKEN`
+- `MASTODON_HOST`
+- `LINKEDIN_ACCESS_TOKEN` for LinkedIn hashtag/thread crossposts
+
+Optional settings:
+
+- `X_CROSSPOST_STATE_FILE` changes the state file path.
+- `X_CROSSPOST_LOOKBACK_LIMIT` changes how many recent X posts are inspected, from 5 to 100. The default is 20.
+- `X_CROSSPOST_LINKEDIN_SETTLE_MINUTES` changes how long LinkedIn-eligible posts wait before posting. The default is 10 minutes, which gives X threads time to finish before LinkedIn gets one combined post.
+- `X_CROSSPOST_DRY_RUN=1` logs intended posts without sending them.
+- `X_CROSSPOST_BOOTSTRAP=1` processes the current lookback window on a fresh state file.
+- `X_CROSSPOST_REMEDIATE=0` disables local agent remediation in `bun run x:supervise`.
+- `X_CROSSPOST_AGENT=opencode` or `X_CROSSPOST_AGENT=codex` selects the remediation agent. The default is `opencode`.
+- `X_CROSSPOST_AGENT_COMMAND` overrides the exact agent command. The supervisor exports `PROMPT_FILE` for custom commands.
+- `X_CROSSPOST_RERUN_AFTER_REMEDIATION=0` prevents the supervisor from rerunning the crosspost command after a successful remediation.
+- `X_WEBHOOK_CONSUMER_SECRET` is your X app consumer secret, used to answer CRC checks and verify webhook signatures.
+- `X_WEBHOOK_HOST`, `X_WEBHOOK_PORT`, and `X_WEBHOOK_PATH` configure the local webhook receiver. The default path is `/webhooks/x`.
+- `X_WEBHOOK_COMMAND` overrides the command run when a webhook arrives. The default is `task x:supervise`.
+
+Use `.env.example` as the starting point for local configuration. Copy it to `.env`, fill in your profile credentials, and keep `.env` uncommitted.
+
+#### Local Automated Remediation
+
+The `bun run x:supervise` command wraps the poller. When the crosspost command fails locally, it:
+
+- Saves failure logs under `.opencode/tmp/x-crosspost-remediation/`.
+- Starts an agent using OpenCode or Codex.
+- Gives the agent a prompt with the failed command, log path, and guardrails.
+- Runs `bun run lint`, `bun run build`, and `bun run test:unit`.
+- Reruns the crosspost command after a successful remediation unless disabled.
+
+Prerequisites for remediation:
+
+- Install and authenticate `opencode` or `codex` on the machine running the poller.
+- Ensure the working tree is allowed to be modified by the agent.
+- Keep API keys in your shell environment or `.env`, never committed to the repo.
+
+Example agent settings:
+
+```shell
+X_CROSSPOST_AGENT=opencode
+# or
+X_CROSSPOST_AGENT=codex
+```
+
+If your agent CLI needs custom flags, use `X_CROSSPOST_AGENT_COMMAND`:
+
+```shell
+X_CROSSPOST_AGENT_COMMAND='opencode run "$(cat "$PROMPT_FILE")"'
+```
+
+#### Example Local Workflows
+
+Webhook receiver, preferred when your X app has webhooks:
+
+```shell
+task x:webhook
+```
+
+Expose `http://your-host:8787/webhooks/x` through your reverse proxy/tunnel and register that URL in X. The receiver handles X CRC checks and validates `x-twitter-webhooks-signature` before triggering `task x:supervise`.
+
+Systemd webhook service:
+
+```shell
+task systemd:install-webhook:user INSTALL_DIR=/path/to/your/clone
+```
+
+Inspect webhook logs with:
+
+```shell
+task systemd:logs-webhook:user
+```
+
+Timer fallback, useful if webhooks are unavailable or as a backup:
+
+Cron example:
+
+```shell
+crontab -e
+```
+
+Then add the line from `examples/cron/x-crosspost.cron`, updating `/opt/x-crosspost` to your clone path. You can print the line for a specific path with:
+
+```shell
+task cron:print INSTALL_DIR=/path/to/your/clone
+```
+
+Systemd timer example:
+
+```shell
+mkdir -p ~/.config/systemd/user
+cp examples/systemd/x-crosspost.service ~/.config/systemd/user/x-crosspost.service
+cp examples/systemd/x-crosspost.timer ~/.config/systemd/user/x-crosspost.timer
+systemctl --user daemon-reload
+systemctl --user enable --now x-crosspost.timer
+```
+
+Or let Task install and patch the user timer for your clone path:
+
+```shell
+task systemd:install:user INSTALL_DIR=/path/to/your/clone
+```
+
+Edit `~/.config/systemd/user/x-crosspost.service` first if your clone is not at `/opt/x-crosspost` or Bun is not at `/usr/bin/bun`. Inspect logs with:
+
+```shell
+journalctl --user -u x-crosspost.service -n 100 --no-pager
+```
+
 ### MCP Server Usage
 
 Crosspost can be run as an MCP (Model Context Protocol) server, which allows it to be used by AI agents:

@@ -190,9 +190,10 @@ export class Client {
 		return (
 			await Promise.allSettled(
 				strategyEntryPairs.map(({ strategy, entry }) => {
-					const { message, images } = entry;
+					const { message, images, media } = entry;
 					return strategy.post(message, {
 						images,
+						media,
 						signal: postOptions?.signal,
 					});
 				}),

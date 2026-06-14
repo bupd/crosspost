@@ -6,6 +6,12 @@
 /* global fetch */
 
 //-----------------------------------------------------------------------------
+// Imports
+//-----------------------------------------------------------------------------
+
+import { getPostMedia, validatePostOptions } from "../util/options.js";
+
+//-----------------------------------------------------------------------------
 // Type Definitions
 //-----------------------------------------------------------------------------
 
@@ -148,15 +154,20 @@ async function fetchPersonUrn(accessToken, signal) {
 }
 
 /**
- * Uploads an image to LinkedIn.
+ * Uploads media to LinkedIn.
  * @param {string} accessToken The access token for the LinkedIn API.
  * @param {string} personUrn The person URN to use for the upload.
- * @param {Uint8Array} imageData The image data to upload.
+ * @param {import("../types.js").MediaEmbed|import("../types.js").ImageEmbed} media The media to upload.
  * @param {AbortSignal} [signal] The abort signal for the request.
  * @returns {Promise<string>} A promise that resolves with the asset URN.
  * @throws {Error} When the request fails.
  */
-async function uploadImage(accessToken, personUrn, imageData, signal) {
+async function uploadMedia(accessToken, personUrn, media, signal) {
+	const isVideo = "type" in media && media.type === "video";
+	const recipe = isVideo ? "feedshare-video" : "feedshare-image";
+	const mimeType =
+		"mimeType" in media && media.mimeType ? media.mimeType : "image/*";
+
 	const response = await fetch(
 		"https://api.linkedin.com/v2/assets?action=registerUpload",
 		{
@@ -167,7 +178,7 @@ async function uploadImage(accessToken, personUrn, imageData, signal) {
 			},
 			body: JSON.stringify({
 				registerUploadRequest: {
-					recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+					recipes: [`urn:li:digitalmediaRecipe:${recipe}`],
 					owner: personUrn,
 					serviceRelationships: [
 						{
@@ -176,8 +187,8 @@ async function uploadImage(accessToken, personUrn, imageData, signal) {
 						},
 					],
 				},
-				signal,
 			}),
+			signal,
 		},
 	);
 
@@ -199,9 +210,9 @@ async function uploadImage(accessToken, personUrn, imageData, signal) {
 			method: "POST",
 			headers: {
 				Authorization: `Bearer ${accessToken}`,
-				"Content-Type": "image/*",
+				"Content-Type": mimeType,
 			},
-			body: imageData,
+			body: media.data,
 			signal,
 		},
 	);
@@ -241,16 +252,19 @@ async function createPost(options, personUrn, message, postOptions) {
 		},
 	};
 
-	// handle image uploads if present
-	if (postOptions?.images?.length) {
-		const images = postOptions.images;
+	// handle media uploads if present
+	const media = getPostMedia(postOptions);
+
+	if (media.length) {
+		const video = media.find(item => item.type === "video");
+		const selectedMedia = video ? [video] : media;
 
 		const mediaAssets = await Promise.all(
-			images.map(image =>
-				uploadImage(
+			selectedMedia.map(item =>
+				uploadMedia(
 					options.accessToken,
 					personUrn,
-					image.data,
+					item,
 					postOptions?.signal,
 				),
 			),
@@ -258,12 +272,12 @@ async function createPost(options, personUrn, message, postOptions) {
 
 		body.specificContent[
 			"com.linkedin.ugc.ShareContent"
-		].shareMediaCategory = "IMAGE";
+		].shareMediaCategory = video ? "VIDEO" : "IMAGE";
 		body.specificContent["com.linkedin.ugc.ShareContent"].media =
 			mediaAssets.map((asset, index) => ({
 				status: "READY",
 				description: {
-					text: images[index].alt || "",
+					text: selectedMedia[index].alt || "",
 				},
 				media: asset,
 				title: {
@@ -374,6 +388,8 @@ export class LinkedInStrategy {
 		if (!message) {
 			throw new TypeError("Missing message to post.");
 		}
+
+		validatePostOptions(postOptions);
 
 		const personUrn = await this.#getPersonUrn();
 		return createPost(this.#options, personUrn, message, postOptions);

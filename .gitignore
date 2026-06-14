@@ -56,6 +56,9 @@ typings/
 
 # dotenv environment variables file
 .env
+.crosspost-state.json
+.crosspost-state.json.tmp
+.opencode/tmp/
 
 # next.js build output
 .next
