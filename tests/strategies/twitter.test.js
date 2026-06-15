@@ -13,6 +13,7 @@ import assert from "node:assert";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { Buffer } from "node:buffer";
 
 //-----------------------------------------------------------------------------
 // Helpers
@@ -29,6 +30,15 @@ const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "images");
 
 describe("TwitterStrategy", () => {
 	describe("constructor", () => {
+		it("should create an instance when only an auth token is present", () => {
+			const strategy = new TwitterStrategy({
+				authToken: "12345678901234567890",
+			});
+
+			assert.strictEqual(strategy.id, "twitter");
+			assert.strictEqual(strategy.name, "X (formerly Twitter)");
+		});
+
 		it("should throw an error when the access token key is missing", () => {
 			assert.throws(() => {
 				new TwitterStrategy({
@@ -78,6 +88,93 @@ describe("TwitterStrategy", () => {
 			});
 			assert.strictEqual(strategy.id, "twitter");
 			assert.strictEqual(strategy.name, "X (formerly Twitter)");
+		});
+	});
+
+	describe("emusks", () => {
+		it("should send a tweet using an auth token", async () => {
+			const calls = {};
+			const fakeClient = {
+				login: async options => {
+					calls.login = options;
+				},
+				media: {
+					create: async () => {
+						throw new Error("Unexpected media upload.");
+					},
+				},
+				tweets: {
+					create: async (text, options) => {
+						calls.tweet = { text, options };
+						return { id: "12345", text };
+					},
+				},
+			};
+
+			const strategy = new TwitterStrategy({
+				authToken: "12345678901234567890",
+				authClient: "web",
+				endpoint: "main",
+				proxy: "http://proxy.example",
+				createEmusksClient: () => fakeClient,
+			});
+
+			const response = await strategy.post(message);
+
+			assert.deepStrictEqual(calls.login, {
+				auth_token: "12345678901234567890",
+				client: "web",
+				endpoint: "main",
+				proxy: "http://proxy.example",
+			});
+			assert.deepStrictEqual(calls.tweet, {
+				text: message,
+				options: undefined,
+			});
+			assert.deepStrictEqual(response, { id: "12345", text: message });
+		});
+
+		it("should upload images before tweeting with emusks", async () => {
+			const imagePath = path.join(FIXTURES_DIR, "smiley.png");
+			const imageData = new Uint8Array(await fs.readFile(imagePath));
+			const calls = { media: [] };
+			const fakeClient = {
+				login: async options => {
+					calls.login = options;
+				},
+				media: {
+					create: async (source, options) => {
+						calls.media.push({ source, options });
+						return { media_id: "media123" };
+					},
+				},
+				tweets: {
+					create: async (text, options) => {
+						calls.tweet = { text, options };
+						return { id: "12345", text };
+					},
+				},
+			};
+
+			const strategy = new TwitterStrategy({
+				authToken: "12345678901234567890",
+				createEmusksClient: () => fakeClient,
+			});
+
+			await strategy.post(message, {
+				images: [{ data: imageData, alt: "Test image" }],
+			});
+
+			assert.strictEqual(calls.media.length, 1);
+			assert.ok(Buffer.isBuffer(calls.media[0].source));
+			assert.deepStrictEqual(calls.media[0].options, {
+				alt_text: "Test image",
+				mediaType: "image/png",
+			});
+			assert.deepStrictEqual(calls.tweet, {
+				text: message,
+				options: { mediaIds: ["media123"] },
+			});
 		});
 	});
 
@@ -226,6 +323,18 @@ describe("TwitterStrategy", () => {
 					data: {
 						id: "1234567890",
 					},
+				};
+
+				const url = strategy.getUrlFromResponse(response);
+				assert.strictEqual(
+					url,
+					"https://x.com/i/web/status/1234567890",
+				);
+			});
+
+			it("should generate the correct URL from an emusks response", function () {
+				const response = {
+					id: "1234567890",
 				};
 
 				const url = strategy.getUrlFromResponse(response);

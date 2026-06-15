@@ -17,22 +17,50 @@ import { getImageMimeType } from "../util/images.js";
 //-----------------------------------------------------------------------------
 
 /**
+ * @typedef {Object} EmusksClient
+ * @property {(options: Object) => Promise<any>} login Logs in to X.
+ * @property {Object} media Media API.
+ * @property {(source: any, options: Object) => Promise<{media_id: string}>} media.create Uploads media.
+ * @property {Object} tweets Tweets API.
+ * @property {(message: string, options?: Object) => Promise<object>} tweets.create Creates a tweet.
+ *
  * @typedef {Object} TwitterOptions
- * @property {string} accessTokenKey The access token for the Twitter app.
- * @property {string} accessTokenSecret The access token secret for the Twitter app.
- * @property {string} apiConsumerKey The app (consumer) key for the Twitter app.
- * @property {string} apiConsumerSecret The app (consumer) secret for the Twitter app.
+ * @property {string} [authToken] The X auth_token cookie value for emusks.
+ * @property {string} [authClient] The emusks client identity to use.
+ * @property {string} [endpoint] The emusks GraphQL endpoint to use.
+ * @property {string} [proxy] The proxy URL to use with emusks.
+ * @property {() => EmusksClient|Promise<EmusksClient>} [createEmusksClient] Creates an emusks client.
+ * @property {string} [accessTokenKey] The access token for the Twitter app.
+ * @property {string} [accessTokenSecret] The access token secret for the Twitter app.
+ * @property {string} [apiConsumerKey] The app (consumer) key for the Twitter app.
+ * @property {string} [apiConsumerSecret] The app (consumer) secret for the Twitter app.
  *
  * @typedef {Object} TwitterPostResponse
- * @property {Object} data The data of the posted tweet.
- * @property {string} data.id The ID of the tweet.
- * @property {string} data.text The text content of the tweet.
- * @property {string[]} data.edit_history_tweet_ids The edit history tweet IDs.
+ * @property {string} [id] The ID of the tweet.
+ * @property {Object} [data] The data of the posted tweet.
+ * @property {string} [data.id] The ID of the tweet.
+ * @property {string} [data.text] The text content of the tweet.
+ * @property {string[]} [data.edit_history_tweet_ids] The edit history tweet IDs.
  */
 
 /** @typedef {[string]|[string,string]|[string,string,string]|[string,string,string,string]} TwitterMediaIdArray */
 
 /** @typedef {import("../types.js").PostOptions} PostOptions */
+
+//-----------------------------------------------------------------------------
+// Helpers
+//-----------------------------------------------------------------------------
+
+/**
+ * Creates an emusks client lazily to avoid import-time side effects for users who
+ * don't post to X with auth-token credentials.
+ * @returns {Promise<EmusksClient>} A new emusks client.
+ */
+async function createEmusksClientFromModule() {
+	// @ts-ignore emusks doesn't currently publish TypeScript declarations.
+	const { default: Emusks } = await import("emusks");
+	return new Emusks();
+}
 
 //-----------------------------------------------------------------------------
 // Exports
@@ -69,11 +97,17 @@ export class TwitterStrategy {
 	 */
 	constructor(options) {
 		const {
+			authToken,
 			accessTokenKey,
 			accessTokenSecret,
 			apiConsumerKey,
 			apiConsumerSecret,
 		} = options;
+
+		if (authToken) {
+			this.#options = options;
+			return;
+		}
 
 		if (!accessTokenKey) {
 			throw new TypeError("Missing Twitter access token key.");
@@ -106,7 +140,65 @@ export class TwitterStrategy {
 		}
 
 		validatePostOptions(postOptions);
+		postOptions?.signal?.throwIfAborted();
 
+		if (this.#options.authToken) {
+			return this.#postWithEmusks(message, postOptions);
+		}
+
+		return this.#postWithTwitterApi(message, postOptions);
+	}
+
+	/**
+	 * Posts a message with emusks.
+	 * @param {string} message The message to tweet.
+	 * @param {PostOptions} [postOptions] Additional options for the post.
+	 * @returns {Promise<object>} A promise that resolves with the tweet data.
+	 */
+	async #postWithEmusks(message, postOptions) {
+		const { authToken, authClient, endpoint, proxy, createEmusksClient } =
+			this.#options;
+		const client = createEmusksClient
+			? await createEmusksClient()
+			: await createEmusksClientFromModule();
+
+		await client.login({
+			auth_token: authToken,
+			client: authClient,
+			endpoint,
+			proxy,
+		});
+
+		postOptions?.signal?.throwIfAborted();
+
+		if (postOptions?.images?.length) {
+			const mediaIds = await Promise.all(
+				postOptions.images.map(image =>
+					client.media
+						.create(Buffer.from(image.data), {
+							alt_text: image.alt,
+							mediaType: getImageMimeType(image.data),
+						})
+						// @ts-ignore emusks media responses don't have local declarations.
+						.then(media => media.media_id),
+				),
+			);
+
+			postOptions?.signal?.throwIfAborted();
+
+			return client.tweets.create(message, { mediaIds });
+		}
+
+		return client.tweets.create(message);
+	}
+
+	/**
+	 * Posts a message with the official Twitter API.
+	 * @param {string} message The message to tweet.
+	 * @param {PostOptions} [postOptions] Additional options for the post.
+	 * @returns {Promise<object>} A promise that resolves with the tweet data.
+	 */
+	async #postWithTwitterApi(message, postOptions) {
 		const {
 			accessTokenKey,
 			accessTokenSecret,
@@ -114,14 +206,14 @@ export class TwitterStrategy {
 			apiConsumerSecret,
 		} = this.#options;
 
-		const client = new TwitterApi({
-			appKey: apiConsumerKey,
-			appSecret: apiConsumerSecret,
-			accessToken: accessTokenKey,
-			accessSecret: accessTokenSecret,
-		});
-
-		postOptions?.signal?.throwIfAborted();
+		const client = new TwitterApi(
+			/** @type {any} */ ({
+				appKey: apiConsumerKey,
+				appSecret: apiConsumerSecret,
+				accessToken: accessTokenKey,
+				accessSecret: accessTokenSecret,
+			}),
+		);
 
 		// if there are images, upload them first
 		if (postOptions?.images?.length) {
@@ -169,12 +261,13 @@ export class TwitterStrategy {
 	 * @returns {string} The URL for the tweet.
 	 */
 	getUrlFromResponse(response) {
-		if (!response?.data?.id) {
+		const id = response?.data?.id ?? response?.id;
+		if (!id) {
 			throw new Error("Tweet ID not found in response");
 		}
 
 		// This format works without knowing the username - Twitter will redirect appropriately
-		return `https://x.com/i/web/status/${response.data.id}`;
+		return `https://x.com/i/web/status/${id}`;
 	}
 
 	/**
