@@ -133,7 +133,9 @@ if (
 // load environment variables from .env file if present
 if (process.env.CROSSPOST_DOTENV) {
 	const filePath =
-		process.env.CROSSPOST_DOTENV === "1" ? ".env" : process.env.CROSSPOST_DOTENV;
+		process.env.CROSSPOST_DOTENV === "1"
+			? ".env"
+			: process.env.CROSSPOST_DOTENV;
 	try {
 		process.loadEnvFile(filePath);
 	} catch (err) {
@@ -155,14 +157,27 @@ const env = new Env();
 const strategies = [];
 
 if (flags.twitter) {
-	strategies.push(
-		new TwitterStrategy({
-			apiConsumerKey: env.require("TWITTER_API_CONSUMER_KEY"),
-			apiConsumerSecret: env.require("TWITTER_API_CONSUMER_SECRET"),
-			accessTokenKey: env.require("TWITTER_ACCESS_TOKEN_KEY"),
-			accessTokenSecret: env.require("TWITTER_ACCESS_TOKEN_SECRET"),
-		}),
-	);
+	const authToken = process.env.TWITTER_AUTH_TOKEN || process.env.AUTH_TOKEN;
+
+	if (authToken) {
+		strategies.push(
+			new TwitterStrategy({
+				authToken,
+				authClient: process.env.TWITTER_AUTH_CLIENT,
+				endpoint: process.env.TWITTER_GRAPHQL_ENDPOINT,
+				proxy: process.env.TWITTER_PROXY,
+			}),
+		);
+	} else {
+		strategies.push(
+			new TwitterStrategy({
+				apiConsumerKey: env.require("TWITTER_API_CONSUMER_KEY"),
+				apiConsumerSecret: env.require("TWITTER_API_CONSUMER_SECRET"),
+				accessTokenKey: env.require("TWITTER_ACCESS_TOKEN_KEY"),
+				accessTokenSecret: env.require("TWITTER_ACCESS_TOKEN_SECRET"),
+			}),
+		);
+	}
 }
 
 if (flags.mastodon) {
@@ -242,7 +257,9 @@ if (flags.nostr) {
 			.split(".")
 			.map(num => parseInt(num, 10));
 		if (major < 22) {
-			console.error("Error: Nostr support requires Node.js v22 or later, or Bun v1.0 or later.");
+			console.error(
+				"Error: Nostr support requires Node.js v22 or later, or Bun v1.0 or later.",
+			);
 			process.exit(1);
 		}
 	}

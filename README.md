@@ -218,6 +218,11 @@ bunx @humanwhocodes/crosspost -t -m -b -f message.txt -i path/to/image.jpg
 Each strategy requires a set of environment variables in order to execute:
 
 - Twitter
+    - `TWITTER_AUTH_TOKEN` or `AUTH_TOKEN` (recommended)
+    - `TWITTER_AUTH_CLIENT` (optional)
+    - `TWITTER_GRAPHQL_ENDPOINT` (optional)
+    - `TWITTER_PROXY` (optional)
+    - Or the legacy official API variables:
     - `TWITTER_ACCESS_TOKEN_KEY`
     - `TWITTER_ACCESS_TOKEN_SECRET`
     - `TWITTER_API_CONSUMER_KEY`
@@ -323,7 +328,18 @@ Each strategy uses the service's preferred way of posting messages, so you'll ne
 
 ### Twitter
 
-To enable posting on Twitter, you'll need to create a free developer account and an OAuth application. Follow [these instructions](https://humanwhocodes.com/blog/2023/04/automating-tweets-v2-api/).
+To enable posting on Twitter/X, set `TWITTER_AUTH_TOKEN` or `AUTH_TOKEN` to your `auth_token` cookie value from an active X browser session. The Twitter strategy uses [emusks](https://emusks.tiago.zip/) with this token to post through X's internal API, including media uploads and alt text.
+
+To find your auth token:
+
+1. Open [x.com](https://x.com) in your browser and log in.
+1. Open Developer Tools.
+1. Go to Application -> Cookies -> `https://x.com`.
+1. Copy the value of the `auth_token` cookie.
+
+You can optionally set `TWITTER_AUTH_CLIENT` to an emusks client identity such as `web`, `android`, `iphone`, `ipad`, `mac`, `old`, or `tweetdeck`. You can also set `TWITTER_GRAPHQL_ENDPOINT` to `web`, `main`, `tweetdeck`, `web_twitter`, `main_twitter`, or `tweetdeck_twitter`, and `TWITTER_PROXY` to route X requests through a proxy.
+
+If neither `TWITTER_AUTH_TOKEN` nor `AUTH_TOKEN` is set, crosspost falls back to the official Twitter API. To use that path, you'll need to create a free developer account and an OAuth application. Follow [these instructions](https://humanwhocodes.com/blog/2023/04/automating-tweets-v2-api/).
 
 Generally speaking, if you are creating an app to automate your own posts, you'll be able to use it for free so long as you're not posting a large number of times per day.
 
