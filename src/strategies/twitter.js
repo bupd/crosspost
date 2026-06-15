@@ -20,7 +20,7 @@ import { getImageMimeType } from "../util/images.js";
  * @typedef {Object} EmusksClient
  * @property {(options: Object) => Promise<any>} login Logs in to X.
  * @property {Object} media Media API.
- * @property {(source: any, options: Object) => Promise<{media_id: string}>} media.create Uploads media.
+ * @property {(source: any, options: Object) => Promise<{media_id?: string|number, media_id_string?: string}>} media.create Uploads media.
  * @property {Object} tweets Tweets API.
  * @property {(message: string, options?: Object) => Promise<object>} tweets.create Creates a tweet.
  *
@@ -179,8 +179,9 @@ export class TwitterStrategy {
 							alt_text: image.alt,
 							mediaType: getImageMimeType(image.data),
 						})
-						// @ts-ignore emusks media responses don't have local declarations.
-						.then(media => media.media_id),
+						.then(media =>
+							String(media.media_id_string ?? media.media_id),
+						),
 				),
 			);
 

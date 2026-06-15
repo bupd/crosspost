@@ -145,7 +145,10 @@ describe("TwitterStrategy", () => {
 				media: {
 					create: async (source, options) => {
 						calls.media.push({ source, options });
-						return { media_id: "media123" };
+						return {
+							media_id: 2066418879555846100,
+							media_id_string: "2066418879555846144",
+						};
 					},
 				},
 				tweets: {
@@ -173,7 +176,7 @@ describe("TwitterStrategy", () => {
 			});
 			assert.deepStrictEqual(calls.tweet, {
 				text: message,
-				options: { mediaIds: ["media123"] },
+				options: { mediaIds: ["2066418879555846144"] },
 			});
 		});
 	});
